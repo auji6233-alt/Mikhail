@@ -1,0 +1,24 @@
+# dependencies
+/node_modules
+
+# next.js
+/.next/
+/out/
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# env files (секреты не коммитим — только .env.example)
+.env*
+!.env.example
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
