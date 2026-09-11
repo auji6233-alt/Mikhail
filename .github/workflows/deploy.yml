@@ -1,4 +1,19 @@
-name: Deploy
+# ─────────────────────────────────────────────────────────────────────────────
+# Авто-деплой штаба (GitHub Actions → сервер по SSH).
+# Адаптировано из ./01-rabochee-mesto/assets/deploy.yml.reference.
+#
+# Что делает: при каждом пуше в main GitHub-раннер заходит на сервер по SSH-ключу
+# и копирует содержимое ./public/ в папку ${DEPLOY_PATH}/hq. Деплой идёт ВНУТРИ
+# Actions, а НЕ с локального компьютера.
+#
+# Подпапка /hq выбрана, потому что DEPLOY_PATH уже занят рабочим Next.js-
+# приложением (see deploy-app.yml) — секреты те же, путь на сервере минимально
+# адаптирован, чтобы не перезаписывать исходники приложения.
+#
+# Секреты репозитория (Settings → Secrets and variables → Actions):
+#   SSH_HOST, SSH_USER, SSH_KEY, DEPLOY_PATH, SSH_PORT — уже настроены.
+# ─────────────────────────────────────────────────────────────────────────────
+name: deploy
 
 on:
   push:
@@ -8,33 +23,17 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Забрать код репозитория
         uses: actions/checkout@v4
 
-      - name: Install SSH key
-        uses: webfactory/ssh-agent@v0.9.0
+      - name: Скопировать сайт из ./public на сервер
+        uses: appleboy/scp-action@v0.1.7
         with:
-          ssh-private-key: ${{ secrets.SSH_KEY }}
-
-      - name: Sync files to server
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -p "${{ secrets.SSH_PORT || 22 }}" "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
-          rsync -az --delete \
-            --exclude '.git' \
-            --exclude '.env' \
-            --exclude 'node_modules' \
-            --exclude '.next' \
-            -e "ssh -p ${{ secrets.SSH_PORT || 22 }}" \
-            ./ "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH }}/"
-
-      - name: Install, build and restart
-        run: |
-          ssh -p "${{ secrets.SSH_PORT || 22 }}" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "
-            set -e
-            cd ${{ secrets.DEPLOY_PATH }}
-            npm ci
-            npm run db:push
-            npm run build
-            sudo systemctl restart proservice
-          "
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          source: "public/*"
+          target: "${{ secrets.DEPLOY_PATH }}/hq"
+          strip_components: 1   # убирает префикс public/ — файлы лягут прямо в ${DEPLOY_PATH}/hq
+          overwrite: true
