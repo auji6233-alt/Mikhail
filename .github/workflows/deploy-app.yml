@@ -38,3 +38,20 @@ jobs:
             npm run build
             sudo systemctl restart proservice
           "
+
+      - name: Deploy bot — env from secret, install deps, systemd service
+        run: |
+          cat > /tmp/bot.env <<'BOTENV'
+          ${{ secrets.BOT_ENV }}
+          BOTENV
+          scp -P "${{ secrets.SSH_PORT || 22 }}" /tmp/bot.env "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH }}/bot_administrator/.env"
+          ssh -p "${{ secrets.SSH_PORT || 22 }}" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "
+            set -e
+            chmod 600 ${{ secrets.DEPLOY_PATH }}/bot_administrator/.env
+            cd ${{ secrets.DEPLOY_PATH }}/bot_administrator
+            npm ci
+            sudo cp bot-administrator.service /etc/systemd/system/bot-administrator.service
+            sudo systemctl daemon-reload
+            sudo systemctl enable bot-administrator
+            sudo systemctl restart bot-administrator
+          "

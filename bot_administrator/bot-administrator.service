@@ -1,0 +1,17 @@
+# systemd-юнит бота-администратора на сервере. Ставится и обновляется деплоем
+# (.github/workflows/deploy-app.yml), сам .env на сервере пишется из секрета GitHub
+# BOT_ENV — секреты в git не попадают.
+[Unit]
+Description=ProService Telegram bot
+After=network.target
+
+[Service]
+Type=simple
+User=uno
+WorkingDirectory=/home/uno/app/bot_administrator
+ExecStart=/usr/bin/npm run start
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
