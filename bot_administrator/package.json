@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "cross-env NODE_OPTIONS=--use-system-ca tsx watch src/bot.ts",
-    "start": "cross-env NODE_OPTIONS=--use-system-ca tsx src/bot.ts"
+    "dev": "tsx watch src/bot.ts",
+    "start": "tsx src/bot.ts"
   },
   "dependencies": {
     "assemblyai": "^4.9.1",
@@ -15,7 +15,6 @@
   "devDependencies": {
     "@types/node": "^22.10.7",
     "@types/node-telegram-bot-api": "^0.64.7",
-    "cross-env": "^7.0.3",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"
   }
