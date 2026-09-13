@@ -1,5 +1,7 @@
 /** Клиент защищённого API приложения (/api/bot/*). Адрес и ключ — из ./bot_administrator/.env. */
 
+const REQUEST_TIMEOUT_MS = 15_000;
+
 type ApiResult =
   | { ok: true; data: unknown }
   | { ok: false; status: number; error: string };
@@ -16,15 +18,36 @@ function apiKey(): string {
   return key;
 }
 
+/**
+ * Всегда возвращает ApiResult, даже при сети/таймауте — чтобы модель получила понятный
+ * повод сказать клиенту "сервис сейчас недоступен", а не ронять весь цикл ответа.
+ */
 async function callApi(pathAndQuery: string, init?: RequestInit): Promise<ApiResult> {
-  const res = await fetch(`${baseUrl()}${pathAndQuery}`, {
-    ...init,
-    headers: {
-      "X-API-Key": apiKey(),
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl()}${pathAndQuery}`, {
+      ...init,
+      signal: controller.signal,
+      headers: {
+        "X-API-Key": apiKey(),
+        "Content-Type": "application/json",
+        ...(init?.headers ?? {}),
+      },
+    });
+  } catch (err) {
+    const timedOut = err instanceof Error && err.name === "AbortError";
+    return {
+      ok: false,
+      status: 0,
+      error: timedOut ? "Сервис записи не отвечает — превышено время ожидания" : "Сервис записи недоступен",
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const error = typeof data === "object" && data && "error" in data ? String((data as { error: unknown }).error) : "Ошибка API";

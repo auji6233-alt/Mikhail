@@ -1,6 +1,11 @@
 import { AssemblyAI } from "assemblyai";
+import { ExternalServiceError } from "./errors.js";
 
 let client: AssemblyAI | null = null;
+
+// Upload + submit + polling готового аудио может занять время, но не бесконечно —
+// если AssemblyAI завис, клиент не должен ждать ответа вечно.
+const TRANSCRIBE_TIMEOUT_MS = 60_000;
 
 function getClient(): AssemblyAI {
   if (!client) {
@@ -13,24 +18,66 @@ function getClient(): AssemblyAI {
   return client;
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new ExternalServiceError("timeout", "AssemblyAI не ответил вовремя")),
+      ms
+    );
+    promise.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      }
+    );
+  });
+}
+
+/** Грубая эвристика по сообщению ошибки SDK — его тип ошибок не документирован явно. */
+function classifySdkError(err: unknown): ExternalServiceError {
+  if (err instanceof ExternalServiceError) return err;
+  const message = err instanceof Error ? err.message : String(err);
+  if (/429|rate limit|too many requests/i.test(message)) {
+    return new ExternalServiceError("rate_limit", message, { cause: err });
+  }
+  if (/5\d\d|unavailable|econnreset|etimedout|fetch failed/i.test(message)) {
+    return new ExternalServiceError("unavailable", message, { cause: err });
+  }
+  return new ExternalServiceError("unavailable", message, { cause: err });
+}
+
 /**
  * Расшифровывает голосовое сообщение (pre-recorded) через AssemblyAI.
  * Модель universal-2 (поддерживает русский), автоопределение языка (ru/en).
  * SDK сам делает upload + submit + polling — ждать готовности вручную не нужно.
  */
 export async function transcribeVoice(audio: Buffer): Promise<string> {
-  const transcript = await getClient().transcripts.transcribe({
-    audio,
-    speech_models: ["universal-2"],
-    language_detection: true,
-  });
+  let transcript;
+  try {
+    transcript = await withTimeout(
+      getClient().transcripts.transcribe({
+        audio,
+        speech_models: ["universal-2"],
+        language_detection: true,
+      }),
+      TRANSCRIBE_TIMEOUT_MS
+    );
+  } catch (err) {
+    throw classifySdkError(err);
+  }
 
   if (transcript.status === "error") {
-    throw new Error(`AssemblyAI: ${transcript.error}`);
+    // Обычно означает проблему с самим аудио (повреждённый файл, неподдерживаемый формат) —
+    // это "кривой ввод" от клиента, а не сбой сервиса.
+    throw new ExternalServiceError("bad_input", `AssemblyAI: ${transcript.error}`);
   }
   const text = transcript.text?.trim();
   if (!text) {
-    throw new Error("AssemblyAI не распознал текст в голосовом сообщении");
+    throw new ExternalServiceError("bad_input", "AssemblyAI не распознал текст в голосовом сообщении");
   }
   return text;
 }

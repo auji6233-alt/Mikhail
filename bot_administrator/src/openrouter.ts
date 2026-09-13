@@ -1,9 +1,11 @@
 import type { ChatMessage } from "./history.js";
 import { toolSchemas, callTool } from "./tools.js";
+import { ExternalServiceError, classifyHttpStatus, classifyNetworkError } from "./errors.js";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODEL = "google/gemini-2.5-flash";
 const MAX_TOOL_ROUNDS = 5;
+const REQUEST_TIMEOUT_MS = 25_000;
 
 type ToolCall = {
   id: string;
@@ -28,32 +30,48 @@ async function requestCompletion(messages: OpenRouterMessage[]): Promise<OpenRou
     throw new Error("OPENROUTER_API_KEY не задан в ./bot_administrator/.env");
   }
 
-  const res = await fetch(OPENROUTER_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      messages,
-      tools: toolSchemas,
-      tool_choice: "auto",
-      // Низкая температура — это не творческий чат, а бот, который не должен выдумывать
-      // расписание/факты вместо того, чтобы дёрнуть нужный инструмент.
-      temperature: 0.2,
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`OpenRouter вернул ошибку ${res.status}: ${errorText}`);
+  let res: Response;
+  try {
+    res = await fetch(OPENROUTER_URL, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        messages,
+        tools: toolSchemas,
+        tool_choice: "auto",
+        // Низкая температура — это не творческий чат, а бот, который не должен выдумывать
+        // расписание/факты вместо того, чтобы дёрнуть нужный инструмент.
+        temperature: 0.2,
+      }),
+    });
+  } catch (err) {
+    throw new ExternalServiceError(classifyNetworkError(err), "Не удалось связаться с OpenRouter", {
+      cause: err,
+    });
+  } finally {
+    clearTimeout(timeout);
   }
 
-  const data = (await res.json()) as OpenRouterResponse;
-  const message = data.choices?.[0]?.message;
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => "");
+    throw new ExternalServiceError(
+      classifyHttpStatus(res.status),
+      `OpenRouter вернул ошибку ${res.status}: ${errorText}`
+    );
+  }
+
+  const data = (await res.json().catch(() => null)) as OpenRouterResponse | null;
+  const message = data?.choices?.[0]?.message;
   if (!message) {
-    throw new Error("OpenRouter не вернул сообщение");
+    throw new ExternalServiceError("unknown", "OpenRouter не вернул сообщение");
   }
   return message;
 }
@@ -74,7 +92,7 @@ export async function askModel(systemPrompt: string, history: ChatMessage[]): Pr
 
     if (!message.tool_calls || message.tool_calls.length === 0) {
       const reply = message.content?.trim();
-      if (!reply) throw new Error("OpenRouter не вернул текст ответа");
+      if (!reply) throw new ExternalServiceError("unknown", "OpenRouter не вернул текст ответа");
       return reply;
     }
 
@@ -93,5 +111,5 @@ export async function askModel(systemPrompt: string, history: ChatMessage[]): Pr
     }
   }
 
-  throw new Error("Превышен лимит обращений к инструментам за один ответ");
+  throw new ExternalServiceError("unknown", "Превышен лимит обращений к инструментам за один ответ");
 }
