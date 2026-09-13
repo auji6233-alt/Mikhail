@@ -29,12 +29,21 @@ if (!process.env.ASSEMBLYAI_API_KEY) {
   );
   process.exit(1);
 }
+if (!process.env.TELEGRAM_API_BASE) {
+  console.error(
+    "TELEGRAM_API_BASE не задан. Прямые адреса Telegram недоступны с курсового сервера — " +
+      "впишите адрес курсового прокси в ./bot_administrator/.env и перезапустите бота."
+  );
+  process.exit(1);
+}
 
 // Системная инструкция собирается один раз при старте (role.md + character.md + faq/faq.md).
 const systemPrompt = buildSystemPrompt();
 
 // Long polling (обычный HTTP) — не webhook/websocket: на некоторых VPS websocket не работает.
-const bot = new TelegramBot(token, { polling: true });
+// baseApiUrl — курсовой прокси: библиотека сама достраивает и /bot<token>/..., и
+// /file/bot<token>/... от этого же базового адреса, так что оба пути Telegram переключаются разом.
+const bot = new TelegramBot(token, { polling: true, baseApiUrl: process.env.TELEGRAM_API_BASE });
 
 console.log("Бот-администратор запущен (long polling, ответы через OpenRouter)");
 

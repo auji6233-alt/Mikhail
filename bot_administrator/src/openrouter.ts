@@ -2,10 +2,16 @@ import type { ChatMessage } from "./history.js";
 import { toolSchemas, callTool } from "./tools.js";
 import { ExternalServiceError, classifyHttpStatus, classifyNetworkError } from "./errors.js";
 
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODEL = "google/gemini-2.5-flash";
 const MAX_TOOL_ROUNDS = 5;
 const REQUEST_TIMEOUT_MS = 25_000;
+
+/** Читается лениво (не на верхнем уровне модуля) — на момент импорта .env ещё не загружен. */
+function chatCompletionsUrl(): string {
+  const base = process.env.OPENROUTER_BASE_URL;
+  if (!base) throw new Error("OPENROUTER_BASE_URL не задан в ./bot_administrator/.env");
+  return `${base.replace(/\/$/, "")}/chat/completions`;
+}
 
 type ToolCall = {
   id: string;
@@ -35,7 +41,7 @@ async function requestCompletion(messages: OpenRouterMessage[]): Promise<OpenRou
 
   let res: Response;
   try {
-    res = await fetch(OPENROUTER_URL, {
+    res = await fetch(chatCompletionsUrl(), {
       method: "POST",
       signal: controller.signal,
       headers: {

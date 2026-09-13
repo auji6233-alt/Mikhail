@@ -13,7 +13,11 @@ function getClient(): AssemblyAI {
     if (!apiKey) {
       throw new Error("ASSEMBLYAI_API_KEY не задан в ./bot_administrator/.env");
     }
-    client = new AssemblyAI({ apiKey });
+    const baseUrl = process.env.ASSEMBLYAI_BASE_URL;
+    if (!baseUrl) {
+      throw new Error("ASSEMBLYAI_BASE_URL не задан в ./bot_administrator/.env");
+    }
+    client = new AssemblyAI({ apiKey, baseUrl });
   }
   return client;
 }
