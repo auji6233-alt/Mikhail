@@ -62,9 +62,11 @@ export const toolSchemas = [
 ] as const;
 
 type ToolArgs = Record<string, unknown>;
+/** Данные о текущем диалоге, которые подставляет код, а не модель (модели не доверяем chatId). */
+export type ToolContext = { chatId: string };
 
 /** Выполняет вызов инструмента по имени и возвращает результат для передачи модели обратно. */
-export async function callTool(name: string, args: ToolArgs): Promise<unknown> {
+export async function callTool(name: string, args: ToolArgs, context: ToolContext): Promise<unknown> {
   switch (name) {
     case "get_services":
       return api.getServices();
@@ -84,6 +86,7 @@ export async function callTool(name: string, args: ToolArgs): Promise<unknown> {
         clientName: String(args.clientName),
         clientPhone: String(args.clientPhone),
         comment: args.comment ? String(args.comment) : undefined,
+        telegramChatId: context.chatId,
       });
     default:
       return { ok: false, error: `Неизвестный инструмент: ${name}` };

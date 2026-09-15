@@ -69,6 +69,8 @@ model Booking {
   status      BookingStatus @default(CONFIRMED)
   clientName  String
   clientPhone String
+  telegramChatId String?
+  remindedAt  DateTime?
   comment     String?
   createdAt   DateTime      @default(now())
 

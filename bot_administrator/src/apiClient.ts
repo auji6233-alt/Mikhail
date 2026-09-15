@@ -80,6 +80,7 @@ export function createBooking(input: {
   clientName: string;
   clientPhone: string;
   comment?: string;
+  telegramChatId?: string;
 }): Promise<ApiResult> {
   return callApi("/api/bot/bookings", { method: "POST", body: JSON.stringify(input) });
 }

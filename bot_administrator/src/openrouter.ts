@@ -1,5 +1,5 @@
 import type { ChatMessage } from "./history.js";
-import { toolSchemas, callTool } from "./tools.js";
+import { toolSchemas, callTool, type ToolContext } from "./tools.js";
 import { ExternalServiceError, classifyHttpStatus, classifyNetworkError } from "./errors.js";
 
 const MODEL = "google/gemini-2.5-flash";
@@ -87,7 +87,11 @@ async function requestCompletion(messages: OpenRouterMessage[]): Promise<OpenRou
  * ответить по базе знаний (FAQ) или вызвать инструмент (/api/bot/*) и выполнить действие.
  * Цикл продолжается, пока модель не даст финальный текстовый ответ (без tool_calls).
  */
-export async function askModel(systemPrompt: string, history: ChatMessage[]): Promise<string> {
+export async function askModel(
+  systemPrompt: string,
+  history: ChatMessage[],
+  context: ToolContext
+): Promise<string> {
   const messages: OpenRouterMessage[] = [
     { role: "system", content: systemPrompt },
     ...history.map((m) => ({ role: m.role, content: m.content })),
@@ -111,7 +115,7 @@ export async function askModel(systemPrompt: string, history: ChatMessage[]): Pr
       } catch {
         // некорректный JSON от модели — передадим инструменту пустые аргументы, он сам вернёт ошибку валидации
       }
-      const result = await callTool(call.function.name, args);
+      const result = await callTool(call.function.name, args, context);
       console.log(`[tool] ${call.function.name}(${JSON.stringify(args)}) →`, JSON.stringify(result));
       messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
     }

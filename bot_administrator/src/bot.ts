@@ -60,7 +60,7 @@ async function safeSend(chatId: number, text: string): Promise<void> {
 async function handleUserText(chatId: number, text: string): Promise<void> {
   pushHistory(chatId, { role: "user", content: text });
   try {
-    const reply = await askModel(systemPrompt, getHistory(chatId));
+    const reply = await askModel(systemPrompt, getHistory(chatId), { chatId: String(chatId) });
     pushHistory(chatId, { role: "assistant", content: reply });
     await safeSend(chatId, reply);
   } catch (err) {
@@ -70,6 +70,7 @@ async function handleUserText(chatId: number, text: string): Promise<void> {
 }
 
 bot.on("message", async (msg) => {
+  console.log(`[message] chat.id=${msg.chat.id}`);
   if (!msg.text) return;
   await handleUserText(msg.chat.id, msg.text);
 });

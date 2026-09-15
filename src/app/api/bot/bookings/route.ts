@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
       clientName?: string;
       clientPhone?: string;
       comment?: string;
+      telegramChatId?: string;
     };
     try {
       body = await req.json();
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Некорректный JSON" }, { status: 400 });
     }
 
-    const { serviceId, masterId, startISO, clientName, clientPhone, comment } = body;
+    const { serviceId, masterId, startISO, clientName, clientPhone, comment, telegramChatId } = body;
     if (!serviceId || !masterId || !startISO || !clientName?.trim() || !clientPhone?.trim()) {
       return NextResponse.json({ error: "Заполните все обязательные поля" }, { status: 400 });
     }
@@ -67,6 +68,7 @@ export async function POST(req: NextRequest) {
         endAt,
         clientName: clientName.trim(),
         clientPhone: clientPhone.trim(),
+        telegramChatId: telegramChatId ?? null,
         comment: comment?.trim() || null,
       },
       select: { id: true },
