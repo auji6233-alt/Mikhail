@@ -22,3 +22,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# transcribe pipeline — исходники и обработанные записи с людьми, в коммит нельзя
+manager/transcribe/recordings/*
+!manager/transcribe/recordings/.gitkeep
+manager/transcribe/to_delete/*
+!manager/transcribe/to_delete/.gitkeep
