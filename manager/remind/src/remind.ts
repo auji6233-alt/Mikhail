@@ -79,8 +79,10 @@ async function main() {
     await client.end();
   }
 
-  const today = new Date().toLocaleDateString("ru-RU", { timeZone: "UTC" });
-  console.log(`Напоминания на завтра (${today}, записей: ${rows.length})\n`);
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString("ru-RU", {
+    timeZone: "UTC",
+  });
+  console.log(`Напоминания на ${tomorrow} (записей на завтра: ${rows.length})\n`);
 
   let sent = 0;
   let skipped = 0;
